@@ -30,13 +30,15 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <pthread.h>
+
 
 
 
 //水平分辨率  像素/  米
-#define HORIZONTAL_RESOLUTION  0.05
+#define HORIZONTAL_RESOLUTION  0.005
 //垂直分辨率
-#define VERTICAL_RESOLUTION  0.05
+#define VERTICAL_RESOLUTION  0.005
 
 
 
@@ -59,6 +61,95 @@ using namespace cv;
 using namespace std;
 using namespace everest::hwdrivers;
 
+
+int flag;
+std::vector<RslidarDataComplete> send_lidar_scan_data;
+
+/*
+
+				0
+				|
+				|
+				|
+	270-----------------90
+				|
+				|
+				|
+			     180
+
+*/
+
+void *thread(void *ptr)
+{
+	Mat map;
+	map.create(2000, 2000, CV_8UC3);
+	map.setTo(255);
+
+	for(int i=0; i<map.rows; i++)
+	{
+		if(i > (map.rows / 2  - 10)  && i < (map.rows / 2 + 10))
+		{
+			for(int j=0; j<map.cols; j++)
+			{
+				if(j > (map.cols / 2 -10) && j < (map.cols / 2 + 10))
+				{
+					map.at<Vec3b>(i,j) = Vec3b(255, 0, 0);
+				}
+			}
+		}
+	}
+
+	int origal_row = map.rows / 2;
+	int origal_col = map.cols / 2;
+
+	while(1)
+	{
+		if(flag == 1)
+		{
+			int size = send_lidar_scan_data.size();
+
+			for(int i=0; i<size; i++)
+			{
+				//根据角度和距离求每个点的x , y
+				float x_col, y_row;
+				x_col = send_lidar_scan_data[i].distance * sin(send_lidar_scan_data[i].angle * M_PI / 180) / HORIZONTAL_RESOLUTION;
+				y_row = send_lidar_scan_data[i].distance * cos(send_lidar_scan_data[i].angle * M_PI / 180) / HORIZONTAL_RESOLUTION;
+
+				int x,y;
+				x = abs(x_col);
+				y = abs(y_row);
+
+				//printf("x=%d, y=%d\r\n", x, y);
+
+				if(send_lidar_scan_data[i].angle > 0 && send_lidar_scan_data[i].angle <= 90)
+				{
+					map.at<Vec3b>(origal_row - y, origal_col + x) = Vec3b(0, 0, 0);
+				}
+				else if(send_lidar_scan_data[i].angle > 90 && send_lidar_scan_data[i].angle <= 180)
+				{
+					map.at<Vec3b>(origal_row + y, origal_col + x) = Vec3b(0, 0, 0);
+				}
+				else if(send_lidar_scan_data[i].angle > 180 && send_lidar_scan_data[i].angle <= 270)
+				{
+					map.at<Vec3b>(origal_row + y, origal_col - x) = Vec3b(0, 0, 0);
+				}
+				else
+				{
+					map.at<Vec3b>(origal_row - y, origal_col - x) = Vec3b(0, 0, 0);
+				}
+			}
+
+			imwrite("map.bmp", map);
+
+		
+			flag = 2;
+		}
+		usleep(50);
+	}
+
+
+	return 0;
+}
 
 int main(int argc, char * argv[])
 {
@@ -91,6 +182,18 @@ int main(int argc, char * argv[])
     robotics_lidar.initilize(&serial_connect);
 
 
+	flag = 0;
+
+	pthread_t id;
+	int ret = pthread_create(&id, NULL, thread, NULL);
+
+	if(ret)
+	{
+		printf("create pthread error!\r\n");
+		return -1;
+	}
+
+
     while (1)
     {
     	//获取雷达扫描的数据
@@ -106,19 +209,27 @@ int main(int argc, char * argv[])
             {
                 TLidarScan lidar_scan = robotics_lidar.getLidarScan();
                 size_t lidar_scan_size = lidar_scan.getSize();
-                std::vector<RslidarDataComplete> send_lidar_scan_data;
-                send_lidar_scan_data.resize(lidar_scan_size);
+				if(flag == 0)
+				{
+                	send_lidar_scan_data.resize(lidar_scan_size);
+				}
                 RslidarDataComplete one_lidar_data;
                 for(size_t i = 0; i < lidar_scan_size; i++)
                 {
                     one_lidar_data.signal = lidar_scan.signal[i];
                     one_lidar_data.angle = lidar_scan.angle[i];
                     one_lidar_data.distance = lidar_scan.distance[i];
-                    send_lidar_scan_data[i] = one_lidar_data;
-					printf("angle:%5.5f, distance:%5.5fm\r\n", one_lidar_data.angle, one_lidar_data.distance);
+					if(flag == 0)
+					{
+                    	send_lidar_scan_data[i] = one_lidar_data;
+					}
                 }
 
-                printf("Lidar count %d!\n", lidar_scan_size);
+
+				if(flag == 0)
+					flag = 1;
+
+                //printf("Lidar count %d!\n", lidar_scan_size);
 
 
                 break;
@@ -133,7 +244,7 @@ int main(int argc, char * argv[])
                 break;
             }
         }
-        //usleep(50);
+        usleep(50);
     }
 
     return 0;
