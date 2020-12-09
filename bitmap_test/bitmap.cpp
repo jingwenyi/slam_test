@@ -73,7 +73,7 @@ void Un_Set_Bit_Map(_Bit_Map* bm, int which)
 	cout << bm->_pBit[index] << endl;
 	
 }
-int main(int argc, char *argv[])
+int main_test1(int argc, char *argv[])
 {
 	_Bit_Map bm;
 	Init_Bit_Map(&bm, 10);
@@ -85,3 +85,45 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
+
+
+
+int main(int argc, char *argv[])
+{
+	Mat map;
+	map.create(1000, 1000, CV_8UC3);
+	map.setTo(255);
+	imwrite("map.bmp", map);
+
+	map.release();
+
+	//读出bmp 文件，把飞机的位置标注在中心点
+	map = imread("map.bmp");
+
+	for(int i=0; i<map.rows; i++)
+	{
+		if(i > (map.rows / 2  - 10)  && i < (map.rows / 2 + 10))
+		{
+			for(int j=0; j<map.cols; j++)
+			{
+				if(j > (map.cols / 2 -10) && j < (map.cols / 2 + 10))
+				{
+					Scalar color = map.at<Vec3b>(i, j);
+					color(0) = 255;
+					color(1) = 0;
+					color(2) = 0;
+					map.at<Vec3b>(i,j) = Vec3b(color(0), color(1), color(2));
+				}
+			}
+		}
+	}
+
+
+	imwrite("map.bmp", map);
+
+	waitKey();
+	cout << "I am ok" << endl;
+
+	return 0;
+}
+
