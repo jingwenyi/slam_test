@@ -16,6 +16,32 @@
 #define DEG2RAD(x) ((x)*M_PI/180.)
 
 
+
+#include <iostream>
+#include <fstream>
+#include <math.h>
+#include <limits.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
+
+
+
+//水平分辨率  像素/  米
+#define HORIZONTAL_RESOLUTION  0.05
+//垂直分辨率
+#define VERTICAL_RESOLUTION  0.05
+
+
+
+
+
 typedef struct _rslidar_data
 {
     _rslidar_data()
@@ -29,6 +55,7 @@ typedef struct _rslidar_data
     float   distance;
 }RslidarDataComplete;
 
+using namespace cv;
 using namespace std;
 using namespace everest::hwdrivers;
 
@@ -88,6 +115,7 @@ int main(int argc, char * argv[])
                     one_lidar_data.angle = lidar_scan.angle[i];
                     one_lidar_data.distance = lidar_scan.distance[i];
                     send_lidar_scan_data[i] = one_lidar_data;
+					printf("angle:%5.5f, distance:%5.5fm\r\n", one_lidar_data.angle, one_lidar_data.distance);
                 }
 
                 printf("Lidar count %d!\n", lidar_scan_size);
